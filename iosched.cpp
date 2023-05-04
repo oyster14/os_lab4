@@ -96,9 +96,10 @@ class FCFS : public IOSched {
 class SSTF : public IOSched {
    public:
     void add_request(IO_request* req) { io_queue.emplace_back(req); }
+
     IO_request* get_next_request() {
         int min_dis = INT_MAX;
-        auto req_ptr = io_queue.begin();
+        auto req_ptr = io_queue.end();
         for (auto it = io_queue.begin(); it != io_queue.end(); it++) {
             int dis = abs(hand - (*it)->track);
             if (dis < min_dis) {
@@ -110,6 +111,7 @@ class SSTF : public IOSched {
         io_queue.erase(req_ptr);
         return req;
     }
+
     bool is_pending() { return !io_queue.empty(); }
 
    private:
@@ -119,48 +121,106 @@ class SSTF : public IOSched {
 class LOOK : public IOSched {
    public:
     void add_request(IO_request* req) { io_queue.emplace_back(req); }
+
     IO_request* get_next_request() {
         int min_dis = INT_MAX;
-        auto req_ptr = io_queue.begin();
-        // for (auto it = io_queue.begin(); it != io_queue.end(); it++) {
-        //     int dis = hand - (*it)->track;
-        //     if (dis dis < min_dis) {
-        //         min_dis = dis;
-        //         req_ptr = it;
-        //     }
-        // }
+        auto req_ptr = io_queue.end();
+        while (true) {
+            for (auto it = io_queue.begin(); it != io_queue.end(); it++) {
+                int dis = ((*it)->track - hand) * dir;
+                if (dis >= 0 && dis < min_dis) {
+                    min_dis = dis;
+                    req_ptr = it;
+                }
+            }
+            if (req_ptr == io_queue.end()) {
+                dir *= -1;
+            } else {
+                break;
+            }
+        }
         IO_request* req = *req_ptr;
         io_queue.erase(req_ptr);
         return req;
     }
+
+    bool is_pending() { return !io_queue.empty(); }
+
+   private:
+    int dir = 1;
+    list<IO_request*> io_queue;
+};
+
+class CLOOK : public IOSched {
+   public:
+    void add_request(IO_request* req) { io_queue.emplace_back(req); }
+
+    IO_request* get_next_request() {
+        int min_dis = INT_MAX;
+        auto req_ptr = io_queue.end();
+        for (auto it = io_queue.begin(); it != io_queue.end(); it++) {
+            int dis = (*it)->track - hand;
+            if (dis >= 0 && dis < min_dis) {
+                min_dis = dis;
+                req_ptr = it;
+            }
+        }
+        if (req_ptr == io_queue.end()) {
+            for (auto it = io_queue.begin(); it != io_queue.end(); it++) {
+                int dis = (*it)->track - hand;
+                if (dis < min_dis) {
+                    min_dis = dis;
+                    req_ptr = it;
+                }
+            }
+        }
+        IO_request* req = *req_ptr;
+        io_queue.erase(req_ptr);
+        return req;
+    }
+
     bool is_pending() { return !io_queue.empty(); }
 
    private:
     list<IO_request*> io_queue;
 };
 
-class CLOOK : public IOSched {
-   public:
-    void add_request(IO_request* req) {}
-    IO_request* get_next_request() {
-        IO_request* req = nullptr;
-        return req;
-    }
-    bool is_pending() { return true; }
-
-   private:
-};
-
 class FLOOK : public IOSched {
    public:
-    void add_request(IO_request* req) {}
+    void add_request(IO_request* req) { add_queue.emplace_back(req); }
+
     IO_request* get_next_request() {
-        IO_request* req = nullptr;
+        if (active_queue.empty()) {
+            swap(active_queue, add_queue);
+        }
+        int min_dis = INT_MAX;
+        auto req_ptr = active_queue.end();
+        while (true) {
+            for (auto it = active_queue.begin(); it != active_queue.end();
+                 it++) {
+                int dis = ((*it)->track - hand) * dir;
+                if (dis >= 0 && dis < min_dis) {
+                    min_dis = dis;
+                    req_ptr = it;
+                }
+            }
+            if (req_ptr == active_queue.end()) {
+                dir *= -1;
+            } else {
+                break;
+            }
+        }
+        IO_request* req = *req_ptr;
+        active_queue.erase(req_ptr);
         return req;
     }
-    bool is_pending() { return true; }
+
+    bool is_pending() { return !(active_queue.empty() && add_queue.empty()); }
 
    private:
+    list<IO_request*> active_queue;
+    list<IO_request*> add_queue;
+    int dir = 1;
 };
 
 IOSched* THE_SCHEDULER = nullptr;
@@ -203,6 +263,7 @@ void simulation() {
         }
         if (curr_request != nullptr &&
             THE_SCHEDULER->is_complete(curr_request->track)) {
+        req_end:
             curr_request->end_time = curr_time;
             tot_movement += curr_time - curr_request->start_time;
             curr_request = nullptr;
@@ -213,6 +274,9 @@ void simulation() {
                 curr_request->start_time = curr_time;
                 max_waittime = max(max_waittime, curr_request->start_time -
                                                      curr_request->arr_time);
+                if (THE_SCHEDULER->is_complete(curr_request->track)) {
+                    goto req_end;
+                }
             } else if (next_request == nullptr) {
                 total_time = curr_time;
                 break;

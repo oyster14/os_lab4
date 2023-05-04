@@ -36,7 +36,7 @@ void init_io_request(string& ifile_name) {
     ifstream ifile;
     ifile.open(ifile_name);
     if (!ifile.is_open()) {
-        printf("Unable to open input_file\n");
+        printf("Not a valid inputfile <%s>\n", ifile_name.c_str());
         exit(1);
     }
     int req_num = 0;
@@ -243,7 +243,7 @@ void init_io_sched() {
             THE_SCHEDULER = new FLOOK();
             break;
         default:
-            printf("Unknown Scheduler spec : -v { NSLCF }\n");
+            printf("Unknown Scheduler spec: -s {NSLCF}\n");
             exit(1);
     }
 }
@@ -324,17 +324,19 @@ int main(int argc, char** argv) {
                 fflag = true;
                 break;
             case 's':
+                if (!(optarg[0] == 'N' || optarg[0] == 'S' ||
+                      optarg[0] == 'L' || optarg[0] == 'C' ||
+                      optarg[0] == 'F')) {
+                    printf("Unknown Scheduler spec: -s {NSLCF}\n");
+                    return 1;
+                }
                 sched_type = optarg[0];
                 break;
             case '?':
                 if (optopt == 's') {
-                    fprintf(stderr,
-                            "./mmu: option requires an argument -- "
-                            "'%c'\nillegal option\n",
-                            optopt);
+                    fprintf(stderr, "Unknown Scheduler spec: -s {NSLCF}\n");
                 } else if (isprint(optopt)) {
-                    fprintf(stderr,
-                            "./mmu: invalid option -- '%c'\nillegal option\n",
+                    fprintf(stderr, "./iosched: invalid option -- '%c'\n",
                             optopt);
                 } else {
                     fprintf(stderr, "Unknown option character `\\x%x'.\n",
@@ -347,7 +349,7 @@ int main(int argc, char** argv) {
     }
 
     if (argc - optind == 0) {
-        printf("inputfile name not supplied\n");
+        printf("Not a valid inputfile <(null)>\n");
         return 1;
     }
 
